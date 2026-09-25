@@ -1,85 +1,98 @@
-# Chest X-ray Pneumonia Detector
+# Chest X-Ray Pneumonia Classifier
 
-A deep learning classifier that detects pneumonia from chest X-rays —
-with **Grad-CAM explainability** showing which lung regions drive each
-prediction, deployed as an interactive web app.
-
-> **Live demo:** _coming soon — deploy on Hugging Face Spaces (see below)_
-> *(Replace this line with your demo GIF once you have one.)*
+A deep-learning classifier that detects pneumonia from chest X-ray images, with Grad-CAM
+heatmaps that show *which lung regions* drove each prediction. Built with PyTorch and
+DenseNet-121, trained on 5,863 labeled X-rays.
 
 ## Results
 
 | Metric | Score |
 |---|---|
-| Test AUC-ROC | _fill in after `python src/evaluate.py`_ |
-| Precision (pneumonia) | _fill in_ |
-| Recall (pneumonia) | _fill in_ |
+| Test AUC-ROC | **0.977** |
+| Accuracy | **0.92** |
+| Pneumonia precision / recall | 0.91 / **0.97** |
+| Normal precision / recall | 0.95 / 0.84 |
 
-*(Add your `results/roc_curve.png` and a Grad-CAM example here.)*
+Confusion matrix (rows = true, cols = predicted):
 
-## How it works
+| | Pred Normal | Pred Pneumonia |
+|---|---|---|
+| True Normal | 197 | 37 |
+| True Pneumonia | 10 | 380 |
 
-1. **Data** — ~5,800 chest X-rays (Kaggle pneumonia dataset), split into
-   train/val/test with augmentation (rotation, horizontal flip).
-2. **Model** — ImageNet-pretrained DenseNet-121, fine-tuned with a binary
-   classification head and class-weighted loss for imbalance.
-3. **Explainability** — Grad-CAM heatmaps over the final convolutional
-   block, so every prediction comes with a visual explanation.
-4. **Deployment** — Streamlit app served on Hugging Face Spaces (free CPU tier).
+The model catches 97% of pneumonia cases — the errors skew toward false alarms on
+healthy lungs rather than missed infections, which is the safer failure mode for a
+screening tool.
 
-## Quick start
+![Training curves](assets/training_curves.png)
+![ROC curve](assets/roc_curve.png)
+
+### What the model looks at
+
+Grad-CAM heatmaps highlight the lung regions behind each prediction:
+
+![Grad-CAM examples](assets/gradcam_07.png)
+![Grad-CAM examples](assets/gradcam_00.png)
+
+## The data
+
+Chest X-ray images for pneumonia detection
+([Kaggle](https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia)) —
+5,863 grayscale X-rays labeled NORMAL or PNEUMONIA.
+
+![Sample X-rays](assets/sample_images.png)
+![Class distribution](assets/class_distribution.png)
+
+The dataset is imbalanced (~3:1 pneumonia in training, and only 16 validation images),
+so training uses a positive-class weight in the loss to keep the minority class from
+being ignored, and model selection is done on validation AUC rather than accuracy.
+
+## Approach
+
+- **Model:** DenseNet-121 pretrained on ImageNet, with the final layer replaced by a
+  single pneumonia logit. DenseNet's dense connections reuse features efficiently,
+  which helps on small medical datasets.
+- **Loss:** Binary cross-entropy with logits, weighted toward the minority class.
+- **Optimization:** Adam (lr 1e-4) with cosine annealing, 12 epochs on a Tesla T4 GPU.
+- **Augmentation:** Random resized crops, horizontal flips, and small rotations —
+  standard for radiology images where orientation varies.
+- **Interpretability:** Grad-CAM on the last convolutional block, so every prediction
+  comes with a visual explanation a clinician can sanity-check.
+
+## Try it
 
 ```bash
-# 1. Environment
-python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-
-# 2. Data (see data/README.md for details)
-kaggle datasets download -d paultimothymooney/chest-xray-pneumonia
-unzip chest-xray-pneumonia.zip -d data/chest_xray
-
-# 3. Train (use a GPU — Google Colab's free tier works)
-python src/train.py --epochs 15
-
-# 4. Evaluate
-python src/evaluate.py
-
-# 5. Generate Grad-CAM explanations
+python src/train.py --data-dir data/chest_xray --epochs 12
+python src/evaluate.py --checkpoint results/best_model.pth
 python src/gradcam.py --num-images 8
-
-# 6. Launch the demo
 streamlit run app/app.py
 ```
 
-## Deploy to Hugging Face Spaces
-
-1. Create a free account at huggingface.co and go to **New Space**.
-2. Choose SDK **Streamlit**, visibility **Public**, hardware **CPU (free)**.
-3. Upload `app/app.py` (as `app.py`), `requirements.txt`, the `src/` folder,
-   and your trained `results/best_model.pth`.
-4. Paste the live URL at the top of this README.
-
-## What I'd do next
-
-- Scale to NIH ChestX-ray14: multi-label classification over 14 pathologies
-- Compare architectures (EfficientNet, Vision Transformer)
-- Add uncertainty estimation so the model can say "I'm not sure"
-
-## Disclaimer
-
-Educational portfolio project — not a medical device, not for clinical use.
+The training notebook (EDA, training, evaluation) is
+[on Google Colab](https://colab.research.google.com/drive/1IbGNc9J48Gj_2JkfBc7mSMosSI5XDE8G).
 
 ## Project structure
 
 ```
-├── app/            # Streamlit demo
-├── data/           # Dataset download instructions (images git-ignored)
-├── src/
-│   ├── dataset.py  # PyTorch dataset + augmentation
-│   ├── model.py    # DenseNet-121 binary classifier
-│   ├── train.py    # Training loop with class-weighted loss
-│   ├── evaluate.py # Test metrics: AUC, precision/recall, ROC curve
-│   └── gradcam.py  # Grad-CAM heatmap generation
-├── results/        # Checkpoints, plots, heatmaps (git-ignored)
-└── requirements.txt
+src/
+  dataset.py   # ChestXrayDataset, train/val transforms
+  model.py     # DenseNet-121 with binary head
+  train.py     # Training loop, class weighting, checkpointing
+  evaluate.py  # Test metrics, ROC curve, confusion matrix
+app/
+  app.py       # Streamlit demo: upload an X-ray, get a prediction + heatmap
+assets/        # Figures for this README
 ```
+
+## Limitations & next steps
+
+- Binary labels only (normal vs. pneumonia) — real triage needs multi-class
+  (bacterial vs. viral) and severity grading.
+- Single-dataset evaluation; cross-hospital generalization is untested.
+- Next: test-time augmentation, model calibration, and comparison against a
+  Vision Transformer baseline.
+
+## Author
+
+Sree Divya — UH Computer Science '27, Bioinformatics minor.
