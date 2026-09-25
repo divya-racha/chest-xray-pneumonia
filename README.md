@@ -95,4 +95,4 @@ assets/        # Figures for this README
 
 ## Author
 
-Sree Divya — UH Computer Science '27, Bioinformatics minor.
+Divya Racha — UH Computer Science '28, Bioinformatics minor.
