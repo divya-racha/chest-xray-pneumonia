@@ -61,8 +61,8 @@ being ignored, and model selection is done on validation AUC rather than accurac
 
 ## Try it
 
+**Live demo:** try the trained model in your browser — upload a chest X-ray and get a prediction with Grad-CAM: https://chest-xray-pneumonia-au8xgfaarboupgqo4ubl6w.streamlit.app/
 ```bash
-pip install -r requirements.txt
 python src/train.py --data-dir data/chest_xray --epochs 12
 python src/evaluate.py --checkpoint results/best_model.pth
 python src/gradcam.py --num-images 8
