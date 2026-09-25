@@ -14,9 +14,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 import torch
 from PIL import Image
-from pytorch_gradcam import GradCAM
-from pytorch_gradcam.utils.image import show_cam_on_image
-from pytorch_gradcam.utils.model_targets import ClassifierOutputTarget
+
+try:
+    from pytorch_gradcam import GradCAM
+    from pytorch_gradcam.utils.image import show_cam_on_image
+    from pytorch_gradcam.utils.model_targets import ClassifierOutputTarget
+except ImportError:
+    # grad-cam>=1.5 installs the module as pytorch_grad_cam
+    from pytorch_grad_cam import GradCAM
+    from pytorch_grad_cam.utils.image import show_cam_on_image
+    from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
 from dataset import CLASS_NAMES, ChestXrayDataset, get_transforms
 from model import build_model
@@ -60,7 +67,6 @@ def main():
                  f"pred-{pred}_{prob:.2f}.png")
         Image.fromarray(overlay).save(os.path.join(args.output_dir, fname))
     print(f"Saved heatmaps to {args.output_dir}/")
-
 
 if __name__ == "__main__":
     main()
