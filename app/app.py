@@ -3,7 +3,7 @@
 Run locally:
     streamlit run app/app.py
 
-Deploy free on Hugging Face Spaces (Streamlit SDK, CPU hardware).
+Live demo deployed on Streamlit Community Cloud.
 """
 import os
 import sys
@@ -12,9 +12,15 @@ import numpy as np
 import streamlit as st
 import torch
 from PIL import Image
-from pytorch_gradcam import GradCAM
-from pytorch_gradcam.utils.image import show_cam_on_image
-from pytorch_gradcam.utils.model_targets import ClassifierOutputTarget
+
+try:
+    from pytorch_gradcam import GradCAM
+    from pytorch_gradcam.utils.image import show_cam_on_image
+    from pytorch_gradcam.utils.model_targets import ClassifierOutputTarget
+except ImportError:  # grad-cam >= 1.5 renamed the package to pytorch_grad_cam
+    from pytorch_grad_cam import GradCAM
+    from pytorch_grad_cam.utils.image import show_cam_on_image
+    from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from dataset import get_transforms  # noqa: E402
@@ -30,8 +36,16 @@ def load_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_model().to(device)
     ckpt = os.path.join(os.path.dirname(__file__), "..",
-                        "results", "best_model.pth")
-    model.load_state_dict(torch.load(ckpt, map_location=device))
+                        "models", "best_model.pth")
+    if not os.path.exists(ckpt):
+        # Fallback to the as-uploaded filename (GitHub web UI can't rename binaries).
+        ckpt = os.path.join(os.path.dirname(__file__), "..",
+                            "models", "best_model_fp16_0_bdxz.pth")
+    state = torch.load(ckpt, map_location=device)
+    # Weights are stored in fp16 to keep the file small; cast back for inference.
+    state = {k: v.float() if torch.is_tensor(v) and v.is_floating_point()
+             else v for k, v in state.items()}
+    model.load_state_dict(state)
     model.eval()
     return model, device
 
